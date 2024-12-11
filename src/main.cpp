@@ -1,4 +1,8 @@
 #include <mbed.h>
+#include "stm32f4xx_hal.h"
+#include "stm32f429i_discovery_lcd.h"
+
+extern "C" void wait_ms(int ms) { wait_us(1000*ms); } // without this the code fails
 
 SPI spi(PF_9, PF_8, PF_7); 
 DigitalOut cs(PC_1); 
@@ -8,6 +12,28 @@ struct GyroData{
     int16_t yaw; //偏航角：绕垂直于板面的z轴旋转，俯视时逆时针为正顺时针为负
     int16_t pitch; //俯仰角：绕平行于短边的轴旋转
     int16_t roll;  //滚转角：绕平行于长边的轴旋转 
+};
+
+class Screen {
+public:
+    Screen() {
+        //Initializing the LCD screen
+        HAL_Init();
+        BSP_LCD_Init();
+        BSP_LCD_LayerDefaultInit(0, LCD_FRAME_BUFFER);
+        BSP_LCD_SelectLayer(0);
+        BSP_LCD_DisplayOn(); //Turning display on
+        BSP_LCD_Clear(LCD_COLOR_WHITE); //Clearing the screen
+    }
+
+    void displayText(const string& text, int line, uint32_t color) {
+        BSP_LCD_SetTextColor(color); //Setting text color
+        BSP_LCD_DisplayStringAt(0, LINE(line), (uint8_t*)text.c_str(), CENTER_MODE); //display text at center of the screen
+    }
+
+    void clear(){
+        BSP_LCD_Clear(LCD_COLOR_WHITE); 
+    }
 };
 
 class GyroMeter{
@@ -77,6 +103,8 @@ int main() {
     //创建陀螺仪对象并初始化，可通过GetData()获取读数
     GyroMeter gyrometer(spi, cs); 
 
+    Screen screen;
+
     // Set up user button
     InterruptIn button(PA_0);
 
@@ -86,12 +114,19 @@ int main() {
     button.rise(&buttonPressed);    // 当按钮被按下时触发
     button.fall(&buttonReleased);  // 当按钮被松开时触发
 
+    int i = 0;
+
     while (true) {
         //此处按钮按下亮灯松开灭灯，按需替换事件
         if(button_pressed) 
             led = 1;
         else 
             led = 0;
+
+        screen.clear();
+        if(i > 13) i = 0;
+        screen.displayText("Hello world!", i, LCD_COLOR_BLACK);
+        i++;
 
         GyroData data = gyrometer.GetData();
         printf("%d, ", data.yaw);

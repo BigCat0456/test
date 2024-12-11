@@ -86,13 +86,7 @@ int main() {
     button.rise(&buttonPressed);    // 当按钮被按下时触发
     button.fall(&buttonReleased);  // 当按钮被松开时触发
 
-    cs = 0;
-    spi.write(0x27 | 0x80); // Read bit is 0b10000000
-    uint8_t whoami = spi.write(0x00); // Dummy write to read
-    cs = 1;
-
     while (true) {
-        printf("%d", whoami);
         //此处按钮按下亮灯松开灭灯，按需替换事件
         if(button_pressed) 
             led = 1;
@@ -104,9 +98,6 @@ int main() {
         printf("%d, ", data.pitch);
         printf("%d\n", data.roll);
 
-		// printf("haha\n");
-		// read_data(x, y, z);
-		// printf("X: %d, Y: %d, Z:%d", x, y, z);
 		fflush(stdout);
         thread_sleep_for(100);
     }

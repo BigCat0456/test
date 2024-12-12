@@ -47,7 +47,7 @@ public:
         spi.write(0xCF); 
         cs = 1; 
         spi.format(8, 3); 
-        spi.frequency(400000);
+        spi.frequency(100000);
     }   
 
     //extract the data from geometer
@@ -71,9 +71,14 @@ public:
     }
 
     void reset_gyroscope() {
-        // write_register(L3GD20_CTRL_REG5, 0x80); // Reset the device
-        // ThisThread::sleep_for(100ms);          // Wait for the reset to complete
-    }
+        cs = 0;                           // 拉低 Chip Select，开始 SPI 通信
+        spi.write(0x20 | 0x40);           // 写入地址 (CTRL_REG5)，设置为写操作
+        spi.write(0x80);                  // 设置 BOOT 位为 1
+        cs = 1;                           // 拉高 Chip Select，结束 SPI 通信
+        thread_sleep_for(10);             // 等待 10ms，让复位完成
+
+        Init();
+    }    
 
 private:
     SPI& spi; //creating spi object for the gyroscope
@@ -102,30 +107,36 @@ int main() {
     //Create a gyrometer object
     //创建陀螺仪对象并初始化，可通过GetData()获取读数
     GyroMeter gyrometer(spi, cs); 
-
     Screen screen;
 
-    // Set up user button
+    // Set up button
     InterruptIn button(PA_0);
 
     BusOut led(LED1);
 
-    //Set up button events  设置按钮监听事件
+    // Set up button events  设置按钮监听事件
     button.rise(&buttonPressed);    // 当按钮被按下时触发
     button.fall(&buttonReleased);  // 当按钮被松开时触发
 
     int i = 0;
+    gyrometer.reset_gyroscope();
 
     while (true) {
-        //此处按钮按下亮灯松开灭灯，按需替换事件
+
+        //response of button events
+        //此处按钮事件响应为按下亮灯松开灭灯，按需替换事件
         if(button_pressed) 
             led = 1;
         else 
             led = 0;
 
+        //屏幕显示事件
         screen.clear();
         if(i > 13) i = 0;
-        screen.displayText("Hello world!", i, LCD_COLOR_BLACK);
+        if(button_pressed) 
+            screen.displayText("Hello world~", i, LCD_COLOR_BLACK);
+        else 
+            screen.displayText("Hello world!", i, LCD_COLOR_BLACK);
         i++;
 
         GyroData data = gyrometer.GetData();

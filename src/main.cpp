@@ -2,11 +2,13 @@
 #include "stm32f4xx_hal.h"
 #include "stm32f429i_discovery_lcd.h"
 
-extern "C" void wait_ms(int ms) { wait_us(1000*ms); } // without this the code fails
+//compiling c together with cpp
+extern "C" void wait_ms(int ms) { thread_sleep_for(500); }
 
 SPI spi(PF_9, PF_8, PF_7); 
 DigitalOut cs(PC_1); 
 
+//data fetched from geometer
 //陀螺仪获取到的数据
 struct GyroData{
     int16_t yaw; //偏航角：绕垂直于板面的z轴旋转，俯视时逆时针为正顺时针为负
@@ -16,19 +18,20 @@ struct GyroData{
 
 class Screen {
 public:
+    //Initialize the screen
     Screen() {
-        //Initializing the LCD screen
         HAL_Init();
         BSP_LCD_Init();
         BSP_LCD_LayerDefaultInit(0, LCD_FRAME_BUFFER);
         BSP_LCD_SelectLayer(0);
-        BSP_LCD_DisplayOn(); //Turning display on
-        BSP_LCD_Clear(LCD_COLOR_WHITE); //Clearing the screen
+        BSP_LCD_DisplayOn();
+        BSP_LCD_Clear(LCD_COLOR_WHITE);
     }
 
+    //show text on screen
     void displayText(const string& text, int line, uint32_t color) {
-        BSP_LCD_SetTextColor(color); //Setting text color
-        BSP_LCD_DisplayStringAt(0, LINE(line), (uint8_t*)text.c_str(), CENTER_MODE); //display text at center of the screen
+        BSP_LCD_SetTextColor(color); //Setting color
+        BSP_LCD_DisplayStringAt(0, LINE(line), (uint8_t*)text.c_str(), CENTER_MODE); //display in center
     }
 
     void clear(){
@@ -65,36 +68,39 @@ public:
         result.yaw = (int16_t)(data[5]<<8 | data[4]);
 
         cs = 1;
-        wait_us(50000);
+        thread_sleep_for(50);
 
         return result;
     }
 
+    //reset the gyroscope
     void reset_gyroscope() {
-        cs = 0;                           // 拉低 Chip Select，开始 SPI 通信
-        spi.write(0x20 | 0x40);           // 写入地址 (CTRL_REG5)，设置为写操作
-        spi.write(0x80);                  // 设置 BOOT 位为 1
-        cs = 1;                           // 拉高 Chip Select，结束 SPI 通信
-        thread_sleep_for(10);             // 等待 10ms，让复位完成
+        cs = 0;                           
+        spi.write(0x20 | 0x40);          
+        spi.write(0x80);                 
+        cs = 1;                           
+        thread_sleep_for(10);            
 
         Init();
     }    
 
 private:
-    SPI& spi; //creating spi object for the gyroscope
-    DigitalOut& cs; //creating digital out object to set chip select high or low
+    SPI& spi; //spi object for the gyroscope
+    DigitalOut& cs; //digital out object to set chip select high or low
 
 };
 
-
+//button status flag
 //按钮状态flag
 volatile bool button_pressed = false;
 
+//button event
 //按钮按下事件
 void buttonPressed() {
     button_pressed = true;
 }
 
+//button release event
 //按钮松开事件    
 //**这两个按钮事件中有些行为可以执行有些事件会导致报错，不太知道为什么
 //目前发现printf和设置led都会报错，遂只在此处修改flag在主循环中进行亮灯灭灯

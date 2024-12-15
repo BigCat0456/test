@@ -1,6 +1,7 @@
 #include <mbed.h>
 #include "stm32f4xx_hal.h"
 #include "stm32f429i_discovery_lcd.h"
+#include <vector>
 
 //compiling c together with cpp
 extern "C" void wait_ms(int ms) { thread_sleep_for(500); }
@@ -15,6 +16,57 @@ struct GyroData{
     int16_t pitch; //俯仰角：绕平行于短边的轴旋转
     int16_t roll;  //滚转角：绕平行于长边的轴旋转 
 };
+
+// 陀螺仪GyroData向量之间的对比
+class GyroDataSequenceMathcer
+{
+private:
+    double threshold; // this threshold is a value to determine the movement of stm32
+
+//计算两个向量的distance
+    double computeCrossCorrelation(const vector<int16_t>& x, const vector<int16_t>& y) {
+        int n = min(x.size(), y.size());
+        double distance = 0;
+        int N = 0; 
+
+        for (int i = 0; i < n; i++) {
+            if (x[i] && y[i]) {
+                distance += abs(x[i] - y[i]);
+                N++;
+            }
+        }
+        return N ? distance / N : 0;
+    }
+public:
+    GyroDataSequenceMathcer(double threshold){
+        this->threshold = threshold;
+    };
+    bool compare(const vector<GyroData>& seq1, const vector<GyroData>& seq2) {
+        int n = min(seq1.size(), seq2.size()); 
+        //minimum size of the recording and attempt sequences
+
+        vector<int16_t> x1(n, 0), y1(n, 0), z1(n, 0); //constraining the size of each vector of measurements to the minimum between both sequences
+        vector<int16_t> x2(n, 0), y2(n, 0), z2(n, 0); //constraining the size of each vector of measurements to the minimum between both sequences
+
+        for (int i = 0; i < n; i++) {
+            //populating the empty vectors with recording sequence measurements
+            x1[i] = seq1[i].x;
+            y1[i] = seq1[i].y;
+            z1[i] = seq1[i].z;
+            //populating the empty vectors with attempt sequence measurements
+            x2[i] = seq2[i].x;
+            y2[i] = seq2[i].y;
+            z2[i] = seq2[i].z;
+        }
+        //computing cross correlation between x, y, z recording and attempt measurements
+        // Determine level of relationship between both signals
+        double distX = computeCrossCorrelation(x1, x2);
+        double distY = computeCrossCorrelation(y1, y2);
+        double distZ = computeCrossCorrelation(z1, z2);
+
+        printf("Dist: %d, %d, %d\n", (int)distX, (int)distY, (int)distZ);
+        // If cross correlation is under the threshold, the attempt sequence is correct
+        bool correct = distX < threshold && distY < threshold && distZ < thr
 
 class Screen {
 public:
@@ -120,6 +172,13 @@ int main() {
 
     BusOut led(LED1);
 
+	// recordData,记录状态下的单片机GyroData 状态 
+	vector<GyroData> recordData; 
+	// attemptData,测试状态下的单片机GyroData 状态
+    	vector<GyroData> attemptData;
+
+	// 本块思路参考https://github.com/chingun/ECE6483/blob/main/src/main.cpp ，后续把这注释删除
+	
     // Set up button events  设置按钮监听事件
     button.rise(&buttonPressed);    // 当按钮被按下时触发
     button.fall(&buttonReleased);  // 当按钮被松开时触发
@@ -127,6 +186,8 @@ int main() {
     int i = 0;
     gyrometer.reset_gyroscope();
 
+
+	
     while (true) {
 
         //response of button events
